@@ -17,27 +17,33 @@ struct ContentView: View {
                     TextField("Name", text: $viewModel.name)
                     TextField("Age", text: $viewModel.ageText)
                         .keyboardType(.numberPad)
+
+                    Button("Save") {
+                        viewModel.save()
+                    }
                 }
 
-                Button("Save") {
-                    viewModel.save()
-                }
-
-                if let stored = viewModel.storedData {
-                    Section(header: Text("Stored data")) {
-                        Text("Name: \(stored.name)")
-                        Text("Age: \(stored.age)")
+                Section(header: Text("All Users")) {
+                    List {
+                        ForEach(viewModel.users) { user in
+                            VStack(alignment: .leading) {
+                                Text(user.name).bold()
+                                Text("Age: \(user.age)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                        .onDelete(perform: viewModel.deleteUser)  // ✅ Swipe to Delete
                     }
                 }
             }
             .navigationTitle("User Info")
             .onAppear {
-                viewModel.fetch()
+                viewModel.fetchAll()
             }
         }
     }
 }
-
 #Preview {
     ContentView()
 }
