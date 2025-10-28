@@ -33,7 +33,7 @@ struct ContentView: View {
                                 if let uiImage = viewModel.uiImage(for: user) {
                                     Image(uiImage: uiImage)
                                         .resizable()
-                                        .scaledToFill()
+                                        .scaledToFit() // ✅ changed from scaledToFill
                                         .frame(width: 60, height: 60)
                                         .clipShape(RoundedRectangle(cornerRadius: 12))
                                         .overlay(
