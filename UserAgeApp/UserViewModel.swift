@@ -1,7 +1,8 @@
 import Foundation
-import FirebaseDatabase
 import SwiftUI
+import FirebaseDatabase
 
+// MARK: - User Model
 struct UserInfo: Identifiable, Codable {
     var id: String
     var name: String
@@ -9,11 +10,7 @@ struct UserInfo: Identifiable, Codable {
     var imagePath: String?   // now stores local file path
 }
 
-
-import Foundation
-import SwiftUI
-import FirebaseDatabase
-
+// MARK: - ViewModel
 @MainActor
 class UserViewModel: ObservableObject {
     @Published var name: String = ""
@@ -27,6 +24,10 @@ class UserViewModel: ObservableObject {
     @Published var selectedUser: UserInfo?
     @Published var isEditing: Bool = false
     
+    // Progress bar
+    @Published var isSaving: Bool = false
+    @Published var progress: Double = 0.0
+    
     private let dbRef = Database.database().reference()
     private let usersPath = "users"
     
@@ -38,34 +39,58 @@ class UserViewModel: ObservableObject {
         }
     }
     
-    // MARK: Save New User with Local Image
+    // MARK: Save New User with Local Image and Progress Bar
     func save() {
         guard let age = Int(ageText), !name.isEmpty else { return }
-        
+
         let id = UUID().uuidString
         var localImagePath: String? = nil
-        
+
+        // Save image locally if selected
         if let imageData = selectedImageData {
             localImagePath = saveImageLocally(id: id, imageData: imageData)
         }
-        
-        let userInfo = UserInfo(id: id, name: name, age: age, imagePath: localImagePath)
-        
+
+        // Create UserInfo for local UI update
+        let newUser = UserInfo(id: id, name: name, age: age, imagePath: localImagePath)
+
         let data: [String: Any] = [
             "id": id,
             "name": name,
             "age": age,
             "imagePath": localImagePath ?? ""
         ]
-        
-        dbRef.child(usersPath).child(id).setValue(data) { error, _ in
-            if error == nil {
+
+        // Start progress
+        isSaving = true
+        progress = 0.0
+
+        Task {
+            // Simulate 5-second save delay for testing
+            for i in 1...50 {
+                try await Task.sleep(nanoseconds: 100_000_000) // 0.1s per step
+                await MainActor.run {
+                    progress = Double(i) / 50.0
+                }
+            }
+
+            // Save to Firebase
+            dbRef.child(usersPath).child(id).setValue(data) { error, _ in
                 Task { @MainActor in
-                    self.name = ""
-                    self.ageText = ""
-                    self.selectedImage = nil
-                    self.selectedImageData = nil
-                    self.fetchAll()
+                    self.isSaving = false
+                    self.progress = 0.0
+
+                    if error == nil {
+                        // Clear inputs
+                        self.name = ""
+                        self.ageText = ""
+                        self.selectedImage = nil
+                        self.selectedImageData = nil
+
+                        // Append the new user and sort alphabetically
+                        self.users.append(newUser)
+                        self.users.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                    }
                 }
             }
         }
@@ -128,15 +153,11 @@ class UserViewModel: ObservableObject {
         fetchAll()
     }
     
-    // Add inside UserViewModel
-    
-    /// Return a UIImage loaded from the local imagePath for a user (or nil).
     func uiImage(for user: UserInfo) -> UIImage? {
         guard let path = user.imagePath, !path.isEmpty else { return nil }
         return UIImage(contentsOfFile: path)
     }
     
-    /// Given an index in filteredUsers, return the matching index in users array.
     func indexInUsers(forFilteredIndex filteredIndex: Int) -> Int? {
         guard filteredIndex >= 0 && filteredIndex < filteredUsers.count else { return nil }
         let id = filteredUsers[filteredIndex].id
